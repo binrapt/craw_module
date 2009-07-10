@@ -1,195 +1,136 @@
 /*
-Command line arguments: python E:\Code\Python\ida\ida.py B:\D2\D2Client.lst process_automap_unit automap_blobs E:\Code\craw_module\source\automap.cpp
-Time of generation: 2009-07-06 20:56:11
+Command line arguments: python E:\Code\Python\ida\ida.py D2Client.dll B:\D2\D2Client.lst process_automap_unit automap_blobs E:\Code\craw_module\source\craw\automap.cpp
+Time of generation: 2009-07-10 16:11:27
 */
 
+#include <string>
 #include <windows.h>
-#include <ail/types.hpp>
-#include <ail/array.hpp>
-#include <ail/string.hpp>
-#include "d2_data.hpp"
-#include "d2_functions.hpp"
-#include "python.hpp"
 
 namespace
 {
+	//Initialisation variables
+
+	char const * module_name = "D2Client.dll";
+	unsigned image_base = 0x6FAB0000;
+	unsigned module_base = 0;
+
 	unsigned get_y_coordinate = 0x6FABC214;
 	unsigned sub_6FACF710 = 0x6FACF710;
 	unsigned D2Common_10195 = 0x6FABC3D0;
 	unsigned D2Win_10132 = 0x6FABD354;
 	unsigned D2Lang_10005 = 0x6FABD1D4;
-	unsigned draw_text_import = 0x6FABD360;
+	unsigned draw_text = 0x6FABD360;
 	unsigned sub_6FACF780 = 0x6FACF780;
 	unsigned get_unit_state = 0x6FABC21A;
 	unsigned D2Common_10860 = 0x6FABCA4E;
-	//unsigned automap_unit_type_check = 0x6FAEF3D0;
-	unsigned original_automap_unit_type_check = 0x6FAEF3D0;
+	unsigned automap_unit_type_check = 0x6FAEF3D0;
 	unsigned sub_6FAEDE00 = 0x6FAEDE00;
 	unsigned D2Common_10350 = 0x6FABC3D6;
-	unsigned is_npc = 0x6FAB2D40;
+	unsigned sub_6FAB2D40 = 0x6FAB2D40;
 	unsigned draw_cross = 0x6FAED0C0;
-	//unsigned sub_6FACF3D0 = 0x6FACF3D0;
-	unsigned get_unicode_name_string = 0x6FACF3D0;
+	unsigned sub_6FACF3D0 = 0x6FACF3D0;
 	unsigned set_text_size = 0x6FABD36C;
 	unsigned get_x_coordinate = 0x6FABC208;
 
-	unsigned
-		npc_colour = 0x20,
-
-		self_colour = 0x97,
-		allied_player_colour = 0x84,
-		unpartied_player_colour = 0xe5,
-		hostile_player_colour = 0x62,
-
-		monster_colour = 0x0a,
-		minion_colour = 0xab,
-		champion_colour = 0x9b,
-		boss_colour = 0x87;
-
-	unsigned draw_symbol = draw_cross;
-
-	bool draw_custom_string;
-	std::string custom_string;
 }
 
-void __stdcall draw_box_and_text(unit * unit_pointer, int x, int y, unsigned colour)
-{
-	unit & current_unit = *unit_pointer;
-	monster_statistics & statistics = get_monster_statistics(current_unit.table_index);
-	python::perform_automap_callback(current_unit, statistics, x, y);
-
-	/*
-	draw_box(x, y, colour);
-	if(draw_custom_string)
-		draw_text(custom_string, x - 5, y - 2, 0, true);
-	*/
-}
-
-void __declspec(naked) draw_box_stub()
+void interrupt()
 {
 	__asm
 	{
-		pushad
-
-		mov ebx, [esp + 32 + 4]
-		
-		push ebx
-		push eax
-		push ecx
-		push esi
-		call draw_box_and_text
-		
-		popad
-		ret 4
+		int 3
 	}
 }
 
-unsigned __stdcall process_unit(unit * unit_pointer, unsigned * colour_pointer)
+void automap_blobs();
+
+void __stdcall initialisation()
 {
-	unit & current_unit = *unit_pointer;
-	unsigned & colour = *colour_pointer;
-
-	draw_custom_string = false;
-	draw_symbol = reinterpret_cast<unsigned>(&draw_box_stub);
-
-	//?
-	colour = 0;
-
-	if(current_unit.mode == 0 || current_unit.mode == 12)
-		//dead
-		return 0;
-
-	monster_statistics & statistics = get_monster_statistics(current_unit.table_index);
-	if(statistics.is_npc())
+	module_base = reinterpret_cast<unsigned>(GetModuleHandle(module_name));
+	if(module_base == 0)
+		interrupt();
+	
+	unsigned * call_addresses[] =
 	{
-		colour = npc_colour;
-		return 1;
+		&get_y_coordinate,
+		&sub_6FACF710,
+		&D2Common_10195,
+		&D2Win_10132,
+		&D2Lang_10005,
+		&draw_text,
+		&sub_6FACF780,
+		&get_unit_state,
+		&D2Common_10860,
+		&automap_unit_type_check,
+		&sub_6FAEDE00,
+		&D2Common_10350,
+		&sub_6FAB2D40,
+		&draw_cross,
+		&sub_6FACF3D0,
+		&set_text_size,
+		&get_x_coordinate
+	};
+	
+	unsigned linking_offset = module_base - image_base;
+	
+	for(std::size_t i = 0; i < 17; i++)
+	{
+		unsigned & address = *call_addresses[i];
+		address += linking_offset;
 	}
-
-	if(statistics.treasure_classes[0].treasure_class[0] == 0)
-		return 0;
-
-	monster_data & data = *reinterpret_cast<monster_data *>(current_unit.unit_data);
-
-	if(data.is_boss())
-		colour = boss_colour;
-	else if(data.is_champion())
-		colour = champion_colour;
-	else if(data.is_minion())
-		colour = minion_colour;
-	else
-		colour = monster_colour;
-
-	std::string description;
-
-	unsigned immunity_colours[] =
+	
+	bool success = false;
+	
+	std::string const marker = "\x0f\x0b\x0f\x0b\x0f\x0b\x0f\x0b";
+	
+	char * data_pointer = reinterpret_cast<char *>(&automap_blobs);
+	while(true)
 	{
-		4,
-		3,
-		1,
-		9,
-		2,
-		8
-	};
-
-	unsigned immunity_stats[] =
-	{
-		36,
-		43,
-		39,
-		41,
-		45,
-		37
-	};
-
-	for(std::size_t i = 0; i < ail::countof(immunity_colours); i++)
-	{
-		unsigned stat = d2_get_unit_stat(unit_pointer, immunity_stats[i], 0);
-		if(stat >= 100)
+		std::string current_string(data_pointer, marker.size());
+		if(current_string == marker)
 		{
-			std::string colour_string = "\xff" "c" + ail::number_to_string(immunity_colours[i]) + "o";
-			description += colour_string;
+			success = true;
+			break;
 		}
+		data_pointer++;
 	}
-
-	custom_string = description;
-	draw_custom_string = !custom_string.empty();
-
-	return 1;
-}		
-
-void __declspec(naked) automap_unit_type_check()
-{
-	/*
-	__asm
+	
+	if(!success)
+		interrupt();
+	
+	data_pointer += marker.size();
+	
+	for(unsigned i = 0; i < 19; i++)
 	{
-		mov eax, 1
-		ret
-	}
-	*/
-
-	__asm
-	{
-		cmp dword ptr [esi], 1
-		jnz process_player
-
-		pushad
-		push ebx
-		push esi
-		call process_unit
-		mov [esp + 28], eax
-		popad
-		ret
-
-	process_player:
-		jmp original_automap_unit_type_check
+		char * label_pointer = *reinterpret_cast<char **>(data_pointer + 1);
+		unsigned * immediate_pointer = reinterpret_cast<unsigned *>(label_pointer - 4);
+		DWORD old_protection;
+		SIZE_T const patch_size = 4;
+		if(!VirtualProtect(immediate_pointer, patch_size, PAGE_EXECUTE_READWRITE, &old_protection))
+			interrupt();
+		unsigned & address = *immediate_pointer;
+		address += linking_offset;
+		DWORD unused;
+		if(!VirtualProtect(immediate_pointer, patch_size, old_protection, &unused))
+			interrupt();
+		data_pointer += 5;
 	}
 }
-
 void __declspec(naked) automap_blobs()
 {
 	__asm
 	{
+		//Initialisation code:
+		
+		cmp module_base, 0
+		jnz is_already_initialised
+		
+		call initialisation
+		
+	is_already_initialised:
+	
+		//Actual code starts here:
+		
 		sub esp, 10h
 		push ebp
 		push esi
@@ -240,29 +181,36 @@ void __declspec(naked) automap_blobs()
 		mov edi, eax
 		call get_y_coordinate
 		mov ebx, ds:[06FBA3B98h]
+	linker_address_0:
 		mov ecx, eax
 		mov eax, edi
 		cdq
 		idiv ebx
 		mov edx, ds:[06FBCC2E8h]
+	linker_address_1:
 		mov edi, eax
 		sub edi, edx
 		mov eax, ecx
 		cdq
 		idiv ebx
 		mov edx, ds:[06FBCC2ECh]
+	linker_address_2:
 		add edi, 8
 		mov ebx, eax
 		mov eax, ds:[06FBCC318h]
+	linker_address_3:
 		sub ebx, edx
 		sub ebx, 8
 		cmp edi, eax
 		jl loc_6FAEFC2A
 		cmp edi, ds:[06FBCC320h]
+	linker_address_4:
 		jg loc_6FAEFC2A
 		cmp ebx, ds:[06FBCC31Ch]
+	linker_address_5:
 		jl loc_6FAEFC2A
 		cmp ebx, ds:[06FBCC324h]
+	linker_address_6:
 		jg loc_6FAEFC2A
 		mov eax, ebp
 		sub eax, 0
@@ -272,6 +220,7 @@ void __declspec(naked) automap_blobs()
 		dec eax
 		jnz loc_6FAEFC2A
 		mov eax, ds:[06FBA3BA4h]
+	linker_address_7:
 		test eax, eax
 		jz loc_6FAEFA6A
 		test esi, esi
@@ -297,7 +246,7 @@ void __declspec(naked) automap_blobs()
 		mov edx, edi
 		sub edx, eax
 		mov ecx, esi
-		call draw_text_import
+		call draw_text
 		mov ecx, ebp
 		call set_text_size
 		pop edi
@@ -311,10 +260,7 @@ void __declspec(naked) automap_blobs()
 		push ecx
 		mov eax, ebx
 		mov ecx, edi
-
-		//call draw_cross
-		call draw_symbol
-
+		call draw_cross
 		pop edi
 		pop ebx
 		pop esi
@@ -326,11 +272,9 @@ void __declspec(naked) automap_blobs()
 		push edx
 		mov eax, ebx
 		mov ecx, edi
-
-		//call draw_cross
-		call draw_symbol
-
+		call draw_cross
 		mov eax, ds:[06FBA3BA4h]
+	linker_address_8:
 		test eax, eax
 		jz loc_6FAEFC2A
 		test esi, esi
@@ -341,14 +285,14 @@ void __declspec(naked) automap_blobs()
 		mov eax, ds:[esi + 4]
 	loc_6FAEFAA7:
 		mov edx, 9
-		call is_npc
+		call sub_6FAB2D40
 		test eax, eax
 		jz loc_6FAEFAF4
 		mov ecx, 6
 		call set_text_size
 		mov ds:[esp + 20h - 10h], eax
 		mov eax, esi
-		call get_unicode_name_string
+		call sub_6FACF3D0
 		push 0
 		mov ebp, eax
 		push 4
@@ -362,14 +306,16 @@ void __declspec(naked) automap_blobs()
 		mov edx, edi
 		sub edx, eax
 		mov ecx, ebp
-		call draw_text_import
+		call draw_text
 		mov ecx, ds:[esp + 20h - 10h]
 		call set_text_size
 	loc_6FAEFAF4:
 		mov eax, ds:[06FBA3BA4h]
+	linker_address_9:
 		test eax, eax
 		jz loc_6FAEFC2A
 		mov eax, ds:[06FBA3BA0h]
+	linker_address_10:
 		test eax, eax
 		jz loc_6FAEFC2A
 		test esi, esi
@@ -395,6 +341,7 @@ void __declspec(naked) automap_blobs()
 	loc_6FAEFB38:
 		push 0A15h
 		push 06FB85D18h
+	linker_address_11:
 		lea ecx, ds:[esp + 28h - 0Ch]
 		push ecx
 		lea edx, ds:[esp + 2Ch - 8]
@@ -420,6 +367,7 @@ void __declspec(naked) automap_blobs()
 		cmp dword ptr ds:[ebp + 0], 0
 		jnz loc_6FAEFC2A
 		mov eax, ds:[06FBCC3D0h]
+	linker_address_12:
 		call sub_6FACF780
 		cmp ax, 0FFFFh
 		mov ds:[esp + 20h - 4], eax
@@ -444,30 +392,33 @@ void __declspec(naked) automap_blobs()
 		retn
 	loc_6FAEFBCD:
 		mov eax, ds:[06FBA3BA0h]
+	linker_address_13:
 		test eax, eax
 		jnz loc_6FAEFBE2
 		mov cl, byte ptr ds:[esp + 20h - 10h]
 		cmp cl, ds:[06FBCC303h]
+	linker_address_14:
 		jz loc_6FAEFBF0
 	loc_6FAEFBE2:
 		mov edx, ds:[esp + 20h - 10h]
 		push edx
 		mov eax, ebx
 		mov ecx, edi
-
-		//call draw_cross
-		call draw_symbol
-
+		call draw_cross
 	loc_6FAEFBF0:
 		mov eax, ds:[06FBA3BA4h]
+	linker_address_15:
 		test eax, eax
 		jz loc_6FAEFC2A
 		mov eax, ds:[06FBA3BA0h]
+	linker_address_16:
 		test eax, eax
 		jz loc_6FAEFC2A
 		cmp esi, ds:[06FBCC3D0h]
+	linker_address_17:
 		jz loc_6FAEFC2A
 		mov al, ds:[06FBCC303h]
+	linker_address_18:
 		cmp byte ptr ds:[esp + 20h - 10h], al
 		jnz loc_6FAEFC19
 		push 2
@@ -490,5 +441,33 @@ void __declspec(naked) automap_blobs()
 		pop ebp
 		add esp, 10h
 		retn
+
+		//Instruction address table hack:
+
+		ud2
+		ud2
+		ud2
+		ud2
+
+		push linker_address_0
+		push linker_address_1
+		push linker_address_2
+		push linker_address_3
+		push linker_address_4
+		push linker_address_5
+		push linker_address_6
+		push linker_address_7
+		push linker_address_8
+		push linker_address_9
+		push linker_address_10
+		push linker_address_11
+		push linker_address_12
+		push linker_address_13
+		push linker_address_14
+		push linker_address_15
+		push linker_address_16
+		push linker_address_17
+		push linker_address_18
 	}
 }
+
