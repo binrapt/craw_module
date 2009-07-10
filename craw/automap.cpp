@@ -143,13 +143,6 @@ void __stdcall initialise_automap_blobs()
 	}
 }
 
-void __stdcall run_test(unit * unit_pointer)
-{
-	write_line("Test: " + ail::hex_string_32(reinterpret_cast<unsigned>(unit_pointer)));
-	write_line("Test: " + ail::hex_string_32(unit_pointer->type) + " " + ail::hex_string_32(unit_pointer->id));
-}
-
-
 void __declspec(naked) automap_blobs()
 {
 	__asm

@@ -168,8 +168,10 @@ void d2client(unsigned base)
 	//debug_register_entries.push_back(debug_register_entry(automap_handler_address, &debug_register_automap));
 	debug_register_entries.push_back(debug_register_entry(automap_loop_address, &debug_register_automap_loop));
 
+	/*
 	patch_address(automap_handler_address, &automap_blobs);
 	write_line("Automap code address: " + ail::hex_string_32(reinterpret_cast<ulong>(&automap_blobs)));
+	*/
 
 	initialise_d2client_functions(base);
 }

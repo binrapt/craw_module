@@ -39,7 +39,8 @@ namespace python
 
 		PyMemberDef monster_data_members[] =
 		{
-			{"id", T_UINT, offsetof(python_monster_data, id), 0, "Offset into the monstats.bin table"},
+			{"type", T_UINT, offsetof(python_monster_data, type), 0, "Unit type"},
+			{"table_index", T_UINT, offsetof(python_monster_data, table_index), 0, "Offset into the monstats.bin table"},
 			{"mode", T_UINT, offsetof(python_monster_data, mode), 0, "Mode of the monster"},
 
 			{"monster_flags", T_UINT, offsetof(python_monster_data, monster_flags), 0, "Monster flags"},
@@ -203,43 +204,47 @@ namespace python
 		monster_statistics & statistics = get_monster_statistics(current_unit.table_index);
 		monster_data & data = *reinterpret_cast<monster_data *>(current_unit.unit_data);
 
-		id = current_unit.id;
+		type = current_unit.type;
+		table_index = current_unit.table_index;
 		mode = current_unit.mode;
 
-		monster_flags = data.flags;
-
-		flags = statistics.flags;
-
-		std::size_t treasure_size = ail::countof(statistics.treasure_classes[difficulty].treasure_class);
-		treasure_class = PyList_New(treasure_size);
-		if(treasure_class == 0)
+		if(type == 1)
 		{
-			error("Failed to create Python list");
-			return;
-		}
+			monster_flags = data.flags;
 
-		for(std::size_t i = 0; i < treasure_size; i++)
-		{
-			PyObject * integer = PyInt_FromLong(statistics.treasure_classes[difficulty].treasure_class[i]);
-			if(PyList_SetItem(treasure_class, i, integer) < 0)
+			flags = statistics.flags;
+
+			std::size_t treasure_size = ail::countof(statistics.treasure_classes[difficulty].treasure_class);
+			treasure_class = PyList_New(treasure_size);
+			if(treasure_class == 0)
 			{
-				error("Failed to initialise a treasure class item");
+				error("Failed to create Python list");
 				return;
 			}
+
+			for(std::size_t i = 0; i < treasure_size; i++)
+			{
+				PyObject * integer = PyInt_FromLong(statistics.treasure_classes[difficulty].treasure_class[i]);
+				if(PyList_SetItem(treasure_class, i, integer) < 0)
+				{
+					error("Failed to initialise a treasure class item");
+					return;
+				}
+			}
+
+			level = statistics.level[difficulty];
+			min_hp = statistics.min_hp[difficulty];
+			max_hp = statistics.max_hp[difficulty];
+			experience = statistics.experience[difficulty];
+
+			damage_resistance = statistics.damage_resistance[difficulty];
+			magic_resistance = statistics.magic_resistance[difficulty];
+
+			fire_resistance = statistics.fire_resistance[difficulty];
+			lightning_resistance = statistics.lightning_resistance[difficulty];
+			cold_resistance = statistics.cold_resistance[difficulty];
+			poison_resistance = statistics.poison_resistance[difficulty];
 		}
-
-		level = statistics.level[difficulty];
-		min_hp = statistics.min_hp[difficulty];
-		max_hp = statistics.max_hp[difficulty];
-		experience = statistics.experience[difficulty];
-
-		damage_resistance = statistics.damage_resistance[difficulty];
-		magic_resistance = statistics.magic_resistance[difficulty];
-
-		fire_resistance = statistics.fire_resistance[difficulty];
-		lightning_resistance = statistics.lightning_resistance[difficulty];
-		cold_resistance = statistics.cold_resistance[difficulty];
-		poison_resistance = statistics.poison_resistance[difficulty];
 	}
 
 	void perform_automap_callback(unit & current_unit, int x, int y, uchar colour)
@@ -283,6 +288,15 @@ namespace python
 		PyModule_AddObject(module, error_name.c_str(), module_error);
 	}
 
+	bool get_base_name(std::string const & input, std::string & output)
+	{
+		std::size_t offset = input.rfind('\\');
+		if(offset == std::string::npos)
+			return false;
+		output = input.substr(0, offset);
+		return true;
+	}
+
 	bool initialise_python()
 	{
 		if(python_script.empty())
@@ -302,6 +316,11 @@ namespace python
 
 		Py_Initialize();
 		initialise_module();
+		
+		std::string script_directory;
+		if(get_base_name(python_script, script_directory))
+			PyRun_SimpleString(("import sys\nsys.path.append('" + script_directory + "')\n").c_str());
+
 		if(PyRun_SimpleString(content.c_str()) != 0)
 			return false;
 

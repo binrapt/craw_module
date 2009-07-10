@@ -9,7 +9,8 @@ namespace python
 	{
 		PyObject_HEAD
 
-		unsigned id;
+		unsigned type;
+		unsigned table_index;
 		unsigned mode;
 
 		unsigned monster_flags;
