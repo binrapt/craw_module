@@ -5,6 +5,10 @@ Time of generation: 2009-07-10 16:34:56
 
 #include <string>
 #include <windows.h>
+#include <ail/string.hpp>
+#include "d2_data.hpp"
+#include "utility.hpp"
+#include "python.hpp"
 
 namespace
 {
@@ -32,6 +36,9 @@ namespace
 	unsigned set_text_size = 0x6FABD36C;
 	unsigned get_x_coordinate = 0x6FABC208;
 
+	//Custom variables
+
+	unit * unit_pointer;
 }
 
 void automap_blobs_interrupt()
@@ -39,6 +46,25 @@ void automap_blobs_interrupt()
 	__asm
 	{
 		int 3
+	}
+}
+
+void __stdcall process_unit(int x, int y, uchar colour)
+{
+	python::perform_automap_callback(*unit_pointer, x, y, colour);
+}
+
+void __declspec(naked) intercept_draw_cross()
+{
+	__asm
+	{
+		pushad
+		push [esp + 32 + 4]
+		push eax
+		push ecx
+		call process_unit
+		popad
+		ret 4
 	}
 }
 
@@ -116,6 +142,14 @@ void __stdcall initialise_automap_blobs()
 		data_pointer += 5;
 	}
 }
+
+void __stdcall run_test(unit * unit_pointer)
+{
+	write_line("Test: " + ail::hex_string_32(reinterpret_cast<unsigned>(unit_pointer)));
+	write_line("Test: " + ail::hex_string_32(unit_pointer->type) + " " + ail::hex_string_32(unit_pointer->id));
+}
+
+
 void __declspec(naked) automap_blobs()
 {
 	__asm
@@ -128,6 +162,9 @@ void __declspec(naked) automap_blobs()
 		call initialise_automap_blobs
 		
 	is_already_initialised:
+
+		//store the unit pointer so we can restore it later if necessary
+		mov unit_pointer, esi
 	
 		//Actual code starts here:
 		
@@ -170,8 +207,23 @@ void __declspec(naked) automap_blobs()
 	loc_6FAEF975:
 		push ebx
 		lea ebx, ds:[esp + 1Ch - 10h]
+
+		/*
 		mov eax, esi
 		call automap_unit_type_check
+		*/
+
+		//<modification>
+
+		mov eax, esi
+		call automap_unit_type_check
+
+		//fix esi and always have the check pass, keep the colour around though
+		mov esi, unit_pointer
+		mov eax, 1
+
+		//</modification>
+
 		test eax, eax
 		jz dont_draw_unit
 		push edi
@@ -260,7 +312,10 @@ void __declspec(naked) automap_blobs()
 		push ecx
 		mov eax, ebx
 		mov ecx, edi
-		call draw_cross
+
+		//call draw_cross
+		call intercept_draw_cross
+
 		pop edi
 		pop ebx
 		pop esi
@@ -272,7 +327,10 @@ void __declspec(naked) automap_blobs()
 		push edx
 		mov eax, ebx
 		mov ecx, edi
-		call draw_cross
+
+		//call draw_cross
+		call intercept_draw_cross
+
 		mov eax, ds:[06FBA3BA4h]
 	linker_address_8:
 		test eax, eax
@@ -404,7 +462,10 @@ void __declspec(naked) automap_blobs()
 		push edx
 		mov eax, ebx
 		mov ecx, edi
-		call draw_cross
+		
+		//call draw_cross
+		call intercept_draw_cross
+
 	loc_6FAEFBF0:
 		mov eax, ds:[06FBA3BA4h]
 	linker_address_15:

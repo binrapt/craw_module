@@ -5,6 +5,7 @@ Time of generation: 2009-07-10 16:34:47
 
 #include <string>
 #include <windows.h>
+#include "automap.hpp"
 
 namespace
 {
@@ -95,6 +96,10 @@ void __stdcall initialise_automap_loop()
 			automap_loop_interrupt();
 		data_pointer += 5;
 	}
+
+	//Deviation from the ASM output: overwriting the function address so it calls our own code instead:
+
+	process_automap_unit = reinterpret_cast<unsigned>(&automap_blobs);
 }
 void __declspec(naked) automap_loop()
 {

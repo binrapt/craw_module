@@ -15,6 +15,10 @@ namespace python
 {
 	namespace
 	{
+		int const
+			max_x = 800,
+			max_y = 600;
+
 		std::string const
 			module_name = "craw",
 			error_name = "error",
@@ -26,7 +30,8 @@ namespace python
 
 		PyMethodDef module_methods[] =
 		{
-			{"set_automap_handler", &set_automap_handler, METH_VARARGS, "This allows you to set a callback function which is called whenever the automap is drawn."},
+			{"set_automap_handler", &set_automap_handler, METH_VARARGS, "This allows you to specify an automap unit handler which is called whenever a unit on the automap is being processed."},
+
 			{"draw_line", &draw_line, METH_VARARGS, "Draws a single line."},
 			{"draw_text", &draw_text, METH_VARARGS, "Draws text on the screen."},
 			{0, 0, 0, 0}
@@ -34,25 +39,32 @@ namespace python
 
 		PyMemberDef monster_data_members[] =
 		{
-			{"id", T_UINT, offsetof(monster_data, id), 0, "Offset into the monstats.bin table"},
-			{"mode", T_UINT, offsetof(monster_data, mode), 0, "Mode of the monster"},
+			{"id", T_UINT, offsetof(python_monster_data, id), 0, "Offset into the monstats.bin table"},
+			{"mode", T_UINT, offsetof(python_monster_data, mode), 0, "Mode of the monster"},
 
-			{"flags", T_UINT, offsetof(monster_data, flags), 0, "Monster flags"},
+			{"monster_flags", T_UINT, offsetof(python_monster_data, monster_flags), 0, "Monster flags"},
+
+			{"flags", T_UINT, offsetof(python_monster_data, flags), 0, "Monster statistics flags"},
 			
-			{"treasure_class", T_OBJECT, offsetof(monster_data, treasure_class), 0, "Treasure class list"},
+			{"treasure_class", T_OBJECT, offsetof(python_monster_data, treasure_class), 0, "Treasure class list"},
 
-			{"level", T_USHORT, offsetof(monster_data, level), 0, "Level"},
-			{"min_hp", T_USHORT, offsetof(monster_data, min_hp), 0, "Minimum hit points"},
-			{"max_hp", T_USHORT, offsetof(monster_data, max_hp), 0, "Maximum hit points"},
-			{"experience", T_USHORT, offsetof(monster_data, experience), 0, "Experience"},
+			{"level", T_USHORT, offsetof(python_monster_data, level), 0, "Level"},
+			{"min_hp", T_USHORT, offsetof(python_monster_data, min_hp), 0, "Minimum hit points"},
+			{"max_hp", T_USHORT, offsetof(python_monster_data, max_hp), 0, "Maximum hit points"},
+			{"experience", T_USHORT, offsetof(python_monster_data, experience), 0, "Experience"},
 
-			{"damage_resistance", T_USHORT, offsetof(monster_data, damage_resistance), 0, "Damage resistance"},
-			{"magic_resistance", T_USHORT, offsetof(monster_data, magic_resistance), 0, "Resistance to magical damage"},
+			{"damage_resistance", T_USHORT, offsetof(python_monster_data, damage_resistance), 0, "Damage resistance"},
+			{"magic_resistance", T_USHORT, offsetof(python_monster_data, magic_resistance), 0, "Resistance to magical damage"},
 
-			{"fire_resistance", T_USHORT, offsetof(monster_data, fire_resistance), 0, "Fire resistance"},
-			{"lightning_resistance", T_USHORT, offsetof(monster_data, lightning_resistance), 0, "Lightning resistance"},
-			{"cold_resistance", T_USHORT, offsetof(monster_data, cold_resistance), 0, "Cold resistance"},
-			{"poison_resistance", T_USHORT, offsetof(monster_data,poison_resistance), 0, "Poison resistance"},
+			{"fire_resistance", T_USHORT, offsetof(python_monster_data, fire_resistance), 0, "Fire resistance"},
+			{"lightning_resistance", T_USHORT, offsetof(python_monster_data, lightning_resistance), 0, "Lightning resistance"},
+			{"cold_resistance", T_USHORT, offsetof(python_monster_data, cold_resistance), 0, "Cold resistance"},
+			{"poison_resistance", T_USHORT, offsetof(python_monster_data, poison_resistance), 0, "Poison resistance"},
+
+			{"x", T_INT, offsetof(python_monster_data, x), 0, "Automap x coordinate"},
+			{"y", T_INT, offsetof(python_monster_data, y), 0, "Automap y coordinate"},
+
+			{"colour", T_UBYTE, offsetof(python_monster_data, colour), 0, "Colour"},
 
 			{0}
 		};
@@ -63,7 +75,7 @@ namespace python
 
 			0,
 			0,
-			sizeof(monster_data),
+			sizeof(python_monster_data),
 			0,
 			0,
 			0,
@@ -100,25 +112,30 @@ namespace python
 		};
 	}
 
-	PyObject * set_automap_handler(PyObject * self, PyObject * arguments)
+	PyObject * set_handler(PyObject * self, PyObject * arguments, std::string const & name, PyObject * & output)
 	{
-		PyObject * new_automap_handler;
+		PyObject * new_handler;
 
-		if(!PyArg_ParseTuple(arguments, "O:set_automap_handler", &new_automap_handler))
+		if(!PyArg_ParseTuple(arguments, ("O:" + name).c_str(), &new_handler))
 			return 0;
 
-		if(!PyCallable_Check(new_automap_handler))
+		if(!PyCallable_Check(new_handler))
 		{
-			PyErr_SetString(PyExc_TypeError, "The automap handler must be a callable object.");
+			PyErr_SetString(PyExc_TypeError, "The handler must be a callable object.");
 			return 0;
 		}
 
-		Py_XINCREF(new_automap_handler);
-		Py_XDECREF(automap_handler);
-		automap_handler = new_automap_handler;
+		Py_XINCREF(new_handler);
+		Py_XDECREF(output);
+		output = output = new_handler;
 
 		Py_INCREF(Py_None);
 		return Py_None;
+	}
+	
+	PyObject * set_automap_handler(PyObject * self, PyObject * arguments)
+	{
+		return set_handler(self, arguments, "set_automap_handler", automap_handler);
 	}
 
 	void fix_coordinate(int & coordinate, int maximum)
@@ -141,10 +158,6 @@ namespace python
 		if(!PyArg_ParseTuple(arguments, "iiiii", &start_x, &start_y, &end_x, &end_y, &colour))
 			return 0;
 
-		int const
-			max_x = 800,
-			max_y = 600;
-
 		fix_coordinate(start_x, max_x);
 		fix_coordinate(start_y, max_y);
 
@@ -161,25 +174,43 @@ namespace python
 
 	PyObject * draw_text(PyObject * self, PyObject * arguments)
 	{
-		std::string text;
+		char * text;
 
 		int
 			x,
 			y;
 
+		PyObject * bool_object;
 
+		if(!PyArg_ParseTuple(arguments, "sii|O", &text, &x, &y, &bool_object))
+			return 0;
+
+		fix_coordinate(x, max_x);
+		fix_coordinate(y, max_y);
+
+		bool centered = (bool_object == Py_True);
+
+		::draw_text(text, x, y, 0, centered);
+
+		Py_INCREF(Py_None);
+		return Py_None;
 	}
 
-	void monster_data::initialise(unit & current_unit, monster_statistics & statistics)
+	void python_monster_data::initialise(unit & current_unit)
 	{
 		uchar difficulty = d2_get_difficulty();
+
+		monster_statistics & statistics = get_monster_statistics(current_unit.table_index);
+		monster_data & data = *reinterpret_cast<monster_data *>(current_unit.unit_data);
 
 		id = current_unit.id;
 		mode = current_unit.mode;
 
+		monster_flags = data.flags;
+
 		flags = statistics.flags;
 
-		std::size_t treasure_size = ail::countof(statistics.treasure_classes);
+		std::size_t treasure_size = ail::countof(statistics.treasure_classes[difficulty].treasure_class);
 		treasure_class = PyList_New(treasure_size);
 		if(treasure_class == 0)
 		{
@@ -211,16 +242,19 @@ namespace python
 		poison_resistance = statistics.poison_resistance[difficulty];
 	}
 
-	void perform_automap_callback(unit & current_unit, monster_statistics & statistics, int x, int y)
+	void perform_automap_callback(unit & current_unit, int x, int y, uchar colour)
 	{
 		if(!automap_handler)
 			return;
 
-		monster_data * monster_data_pointer = PyObject_New(monster_data, &monster_data_type);
-		monster_data & current_monster_data = *monster_data_pointer;
-		current_monster_data.initialise(current_unit, statistics);
+		python_monster_data * monster_data_pointer = PyObject_New(python_monster_data, &monster_data_type);
+		python_monster_data & current_monster_data = *monster_data_pointer;
+		current_monster_data.initialise(current_unit);
+		current_monster_data.x = x;
+		current_monster_data.y = y;
+		current_monster_data.colour = colour;
 
-		PyObject * return_value = PyObject_CallFunction(automap_handler, "Oii", monster_data_pointer, x, y);
+		PyObject * return_value = PyObject_CallFunction(automap_handler, "O", monster_data_pointer);
 		if(!return_value)
 			return;
 
