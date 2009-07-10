@@ -1,6 +1,7 @@
 //http://docs.python.org/extending/extending.html
 //http://starship.python.net/crew/mwh/toext/node20.html
 
+#include <iostream>
 #include <Python.h>
 #include <structmember.h>
 #include <ail/string.hpp>

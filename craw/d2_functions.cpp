@@ -79,7 +79,7 @@ void initialise_d2client_functions(unsigned base)
 	module_offset_handler offset_handler(d2client_base, base);
 
 	offset_handler.fix(d2_get_player_unit, 0x6FACE490);
-	offset_handler.fix(d2_get_difficulty, 0x6FACE490);
+	offset_handler.fix(d2_get_difficulty, 0x6FB29CD0);
 }
 
 void draw_text(std::string const & text, int x, int y, unsigned colour, bool centered)
