@@ -28,5 +28,5 @@ def draw_box(coordinate, colour):
 		
 		craw.draw_line(x + start_x, y + start_y, x + end_x, y + end_y, colour)
 		
-def draw_automap_text(string, x, y):
-	craw.draw_text(string, x - 5, y - 2, True)
+def draw_automap_text(string, coordinate):
+	craw.draw_text(string, coordinate[0] - 5, coordinate[1] - 2, True)

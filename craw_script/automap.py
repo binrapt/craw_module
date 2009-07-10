@@ -29,9 +29,11 @@ class automap_handler:
 		try:
 			self.monster_data = monster_data
 			
+			coordinate = (monster_data.x, monster_data.y)
+			
 			if monster_data.type != 1:
 				if monster_data.colour != 0x00:
-					draw_box((monster_data.x, monster_data.y), monster_data.colour)
+					draw_box(coordinate, monster_data.colour)
 				return
 				
 			if monster_data.colour == self.original_npc_colour:
@@ -52,7 +54,31 @@ class automap_handler:
 				else:
 					colour = self.monster_colour
 					
-			draw_box((monster_data.x, monster_data.y), colour)
+				immunity_colours = [4, 3, 1, 9, 2, 8]
+				immunities = [
+					monster_data.damage_resistance,
+					monster_data.magic_resistance,
+					
+					monster_data.fire_resistance,
+					monster_data.lightning_resistance,
+					monster_data.cold_resistance,
+					monster_data.poison_resistance
+				]
+				
+				print str(immunities)
+				
+				immunity_string = ''
+				offset = 0
+				for immunity in immunities:
+					if immunity >= 100:
+						immunity_string += '%sc%d' % ('\xff', immunity_colours[offset])
+					
+					offset += 1
+					
+				if len(immunity_string) > 0:
+					draw_automap_text(coordinate, immunity_string)
+					
+			draw_box(coordinate, colour)
 			
 		except:
 			traceback.print_exc(file=sys.stdout)
