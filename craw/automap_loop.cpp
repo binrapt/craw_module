@@ -1,6 +1,6 @@
 /*
 Command line arguments: python E:\Code\Python\ida\ida.py D2Client.dll B:\D2\D2Client.lst sub_6FAF0350 automap_loop E:\Code\craw_module\source\craw\automap_loop.cpp
-Time of generation: 2009-07-10 16:12:42
+Time of generation: 2009-07-10 16:34:47
 */
 
 #include <string>
@@ -24,7 +24,7 @@ namespace
 
 }
 
-void interrupt()
+void automap_loop_interrupt()
 {
 	__asm
 	{
@@ -34,11 +34,11 @@ void interrupt()
 
 void automap_loop();
 
-void __stdcall initialisation()
+void __stdcall initialise_automap_loop()
 {
 	module_base = reinterpret_cast<unsigned>(GetModuleHandle(module_name));
 	if(module_base == 0)
-		interrupt();
+		automap_loop_interrupt();
 	
 	unsigned * call_addresses[] =
 	{
@@ -76,7 +76,7 @@ void __stdcall initialisation()
 	}
 	
 	if(!success)
-		interrupt();
+		automap_loop_interrupt();
 	
 	data_pointer += marker.size();
 	
@@ -87,12 +87,12 @@ void __stdcall initialisation()
 		DWORD old_protection;
 		SIZE_T const patch_size = 4;
 		if(!VirtualProtect(immediate_pointer, patch_size, PAGE_EXECUTE_READWRITE, &old_protection))
-			interrupt();
+			automap_loop_interrupt();
 		unsigned & address = *immediate_pointer;
 		address += linking_offset;
 		DWORD unused;
 		if(!VirtualProtect(immediate_pointer, patch_size, old_protection, &unused))
-			interrupt();
+			automap_loop_interrupt();
 		data_pointer += 5;
 	}
 }
@@ -105,7 +105,7 @@ void __declspec(naked) automap_loop()
 		cmp module_base, 0
 		jnz is_already_initialised
 		
-		call initialisation
+		call initialise_automap_loop
 		
 	is_already_initialised:
 	
