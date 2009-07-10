@@ -1,5 +1,6 @@
 from utility import *
-import sys, traceback
+from text import *
+import sys, traceback, craw
 
 class automap_handler:
 
@@ -27,6 +28,8 @@ class automap_handler:
 	
 	def process_data(self, monster_data):
 		try:
+			#craw.draw_text(get_rainbow(), 32, 32, False)
+			
 			self.monster_data = monster_data
 			
 			coordinate = (monster_data.x, monster_data.y)
@@ -54,29 +57,27 @@ class automap_handler:
 				else:
 					colour = self.monster_colour
 					
-				immunity_colours = [4, 3, 1, 9, 2, 8]
+				immunity_colours = [red, blue, yellow, green, gold, orange]
 				immunities = [
-					monster_data.damage_resistance,
-					monster_data.magic_resistance,
-					
 					monster_data.fire_resistance,
-					monster_data.lightning_resistance,
 					monster_data.cold_resistance,
-					monster_data.poison_resistance
+					monster_data.lightning_resistance,
+					monster_data.poison_resistance,
+					monster_data.damage_resistance,
+					monster_data.magic_resistance
 				]
 				
-				print str(immunities)
 				
 				immunity_string = ''
 				offset = 0
 				for immunity in immunities:
 					if immunity >= 100:
-						immunity_string += '%sc%d' % ('\xff', immunity_colours[offset])
+						immunity_string += '%so' % immunity_colours[offset]
 					
 					offset += 1
 					
 				if len(immunity_string) > 0:
-					draw_automap_text(coordinate, immunity_string)
+					draw_automap_text(immunity_string, coordinate)
 					
 			draw_box(coordinate, colour)
 			
