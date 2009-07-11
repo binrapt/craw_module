@@ -82,4 +82,4 @@ class automap_handler:
 			draw_box(coordinate, colour)
 			
 		except:
-			traceback.print_exc(file=sys.stdout)
+			traceback.print_exc(file = sys.stdout)

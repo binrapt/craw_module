@@ -209,6 +209,8 @@ namespace python
 		table_index = current_unit.table_index;
 		mode = current_unit.mode;
 
+		treasure_class = 0;
+
 		if(type == 1)
 		{
 			monster_flags = data.flags;
@@ -265,6 +267,8 @@ namespace python
 			return;
 
 		Py_DECREF(return_value);
+		Py_XDECREF(current_monster_data.treasure_class);
+		Py_DECREF(monster_data_pointer);
 	}
 
 	PyMODINIT_FUNC initialise_module()
